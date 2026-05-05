@@ -2038,23 +2038,13 @@ wdSection.innerHTML = `
 document.querySelector('.dep-section').appendChild(wdSection);
 
 window.openPayModal=(amt)=>{
-  const tg = window.Telegram?.WebApp;
   const url = `https://t.me/Firstanywharebingobot?start=deposit_${amt}`;
-  if(tg){
-    tg.openTelegramLink(url);
-  } else {
-    window.open(url,'_blank');
-  }
+  window.open(url,'_blank');
 };
 
 window.openWithdraw=()=>{
-  const tg = window.Telegram?.WebApp;
   const url = `https://t.me/Firstanywharebingobot?start=withdraw_${userId}`;
-  if(tg){
-    tg.openTelegramLink(url);
-  } else {
-    window.open(url,'_blank');
-  }
+  window.open(url,'_blank');
 };
 window.closePayModal=()=>document.getElementById('payModal').classList.remove('open');
 
@@ -2082,4 +2072,4 @@ window.sendPayment=async()=>{
 };
 </script>
 </body>
-</html>
+      </html>
