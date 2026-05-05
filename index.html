@@ -706,7 +706,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
   <!-- LEADERBOARD PANEL -->
   <div id="leaderboardPanel">
     <div class="lb-header">
-      <div class="lb-title">🏆 LEADERBOARD</div>
+      <div class="lb-title">🏆 WINNER HISTORY</div>
       <div class="lb-called-badge">📢 Called: <span class="lbc-num" id="lbCalledCount">0</span></div>
     </div>
     <div id="lbList"></div>
@@ -779,8 +779,7 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 <!-- ACCOUNT SCREEN -->
 <div id="accountScreen" class="screen">
   <div class="acc-header">
-    <button class="btn acc-header-back" onclick="showScreen('selectScreen')">⬅ Back</button>
-    <span class="acc-header-title">ACCOUNT</span>
+   <button class="btn back-btn" onclick="showScreen('selectScreen')">⬅ Back</button>
   </div>
   <div class="acc-profile">
     <div class="acc-profile-row">
@@ -1323,7 +1322,7 @@ window.confirmCard = async () => {
       showToast('✅ Card #'+selectedCard+' confirmed!');
       selectedCard = null;
       document.getElementById('selectedCountBadge').style.display='none';
-      closePreview();
+     
     } else {
       showToast(data.msg || '❌ Error!');
     }
@@ -1466,12 +1465,10 @@ onValue(ref(db,'game/status'),async s=>{
     buildTV();renderGameCards();
     calledNumbers.forEach(n=>{const el=document.getElementById('num'+n);if(el)el.classList.add('called');});
     updateGameCards();
-    const currentScreen=document.querySelector('.screen.active')?.id;
-if(wasAlreadyStarted && currentScreen==='gameScreen'){
-  showScreen('gameScreen');
-} else {
-  showScreen('selectScreen');
-}
+    showScreen('gameScreen');
+buildTV();
+renderGameCards();
+updateGameCards();
   } else {
     gameStarted=false;
     toggleGameUI(false);
@@ -1480,7 +1477,6 @@ if(wasAlreadyStarted && currentScreen==='gameScreen'){
     confirmedCards=[];allConfirmedData={};selectedCard=null;
     document.getElementById('selectedCountBadge').style.display='none';
     calledNumbers=[];
-    closePreview();
     for(let i=1;i<=100;i++){
       const el=document.getElementById('cn'+i);
       if(el) el.className='card-num';
@@ -1517,6 +1513,7 @@ onValue(ref(db,'game/calledNumbers'),s=>{
 
   updateGameCards();
   if(gameStarted) renderLeaderboard();
+  renderGameLeaderboard();
 });
 
 // ── ANNOUNCEMENT ──
@@ -1585,7 +1582,6 @@ onValue(ref(db,'game/reset'),s=>{
   document.getElementById('winnerOverlay').classList.remove('show');
   document.getElementById('countdownBar').classList.remove('active');
   document.getElementById('selectedCountBadge').style.display='none';
-  closePreview();
   clearInterval(cdPlayerTimer);cdPlayerTimer=null;
   for(let i=1;i<=100;i++){
     const el=document.getElementById('cn'+i);
@@ -1715,9 +1711,10 @@ function updateGameCards(){
       if(!d)return;
       if(calledNumbers.includes(n))d.classList.add('hit-other');
     });
+    renderGameLeaderboard();
   });
 }
-
+renderGameLeaderboard();
 // ── NAV ──
 window.goLive=()=>{
   if(!gameStarted){showToast('⏳ ጫወታው ገና አልጀመረም!');return;}
@@ -1762,7 +1759,7 @@ window.loadHistory = async () => {
   }
 
   const winners = (Array.isArray(data) ? data : Object.values(data))
-  .filter(w => !w.isBot);
+  .sort((a,b) => (b.time||0) - (a.time||0));
   box.innerHTML = '';
 
   const header = document.createElement('div');
@@ -1933,83 +1930,87 @@ function calcBestLine(cardId){
   return minNeeded; // 0 = BINGO!
 }
 
-function renderLeaderboard(){
+async function renderLeaderboard(){
   const list = document.getElementById('lbList');
   const calledEl = document.getElementById('lbCalledCount');
   if(calledEl) calledEl.textContent = calledNumbers.length;
   if(!list) return;
 
-  const entries = Object.entries(allConfirmedData);
-  if(entries.length === 0){
-    list.innerHTML = '<div class="lb-empty">ምንም ተጫዋች የለም</div>';
+  const snap = await get(ref(db, 'allWinners'));
+  const data = snap.val();
+
+  if(!data || !Object.keys(data).length){
+    list.innerHTML = '<div class="lb-empty">📭 ምንም አሸናፊ ታሪክ የለም</div>';
     return;
   }
 
-  // Build score for each card
+  const winners = (Array.isArray(data) ? data : Object.values(data))
+    .sort((a,b) => (b.time||0) - (a.time||0))
+    .slice(0, 20);
+
+  list.innerHTML = '';
+
+  winners.forEach((w, i) => {
+    const isMine = String(w.user) === String(userId);
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (isMine ? ' lb-mine' : '');
+    row.innerHTML = `
+      <div class="lb-bar" style="width:100%;background:linear-gradient(90deg,rgba(240,192,64,.06),transparent);"></div>
+      <div class="lb-rank ${i===0?'r1':i===1?'r2':i===2?'r3':''}">${i===0?'👑':i+1}</div>
+      <div class="lb-info">
+        <div class="lb-name">${w.displayName || w.user} ${isMine?'(You)':''}</div>
+        <div class="lb-card-id">Card #${w.cardId} · ${w.time ? new Date(w.time).toLocaleString('am-ET',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—'}</div>
+      </div>
+      <div class="lb-hits">
+        <div class="lb-hit-num" style="color:var(--gold)">${w.prize||0}</div>
+        <div class="lb-hit-label">ብር</div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+function renderGameLeaderboard(){
+  const gameLb = document.getElementById('gameLbList');
+  if(!gameLb) return;
+
+  const entries = Object.entries(allConfirmedData);
+  if(entries.length === 0){
+    gameLb.innerHTML = '<div class="lb-empty">ምንም ተጫዋች የለም</div>';
+    return;
+  }
+
   const scores = entries.map(([cardId, owner])=>{
     const id = Number(cardId);
     const hits = calcHits(id);
     const needed = calcBestLine(id);
     const isMine = String(owner) === String(userId);
     const displayName = displayNames[owner] || String(owner);
-const label = isMine ? 'You — Card #'+id : displayName + ' — Card #'+id;
-    return { id, hits, needed, isMine, label, owner };
+    const label = isMine ? 'You — Card #'+id : displayName + ' — Card #'+id;
+    return { id, hits, needed, isMine, label };
   });
 
-  // Sort: fewest needed first (closest to bingo), then most hits
   scores.sort((a,b)=> a.needed - b.needed || b.hits - a.hits);
 
-  list.innerHTML = '';
+  gameLb.innerHTML = '';
   scores.forEach((s, idx)=>{
     const rank = idx + 1;
-    const pct  = Math.round((s.hits / 24) * 100); // 24 non-FREE cells
-
     const row = document.createElement('div');
-    row.className = 'lb-row' + (s.isMine ? ' lb-mine' : '') + (rank === 1 ? ' lb-top' : '');
-
-    // Progress bar background
-    const bar = document.createElement('div');
-    bar.className = 'lb-bar';
-    bar.style.width = pct + '%';
-
-    // Rank
-    const rankEl = document.createElement('div');
-    rankEl.className = 'lb-rank' + (rank<=3?' r'+rank:'');
-    rankEl.textContent = rank === 1 ? '👑' : rank;
-
-    // Info
-    const info = document.createElement('div');
-    info.className = 'lb-info';
-    info.innerHTML = `<div class="lb-name">${s.label}</div>
-      <div class="lb-card-id">${s.needed === 0 ? '🎉 BINGO!' : s.needed + ' away from BINGO'}</div>`;
-
-    // Hits
-    const hitsEl = document.createElement('div');
-    hitsEl.className = 'lb-hits';
-    hitsEl.innerHTML = `<div class="lb-hit-num">${s.hits}</div><div class="lb-hit-label">hits</div>`;
-
-    // Mini dot grid (24 cells)
-    const dots = document.createElement('div');
-    dots.className = 'lb-progress-dots';
-    boards[s.id].forEach(n=>{
-      if(n==='FREE') return;
-      const d = document.createElement('div');
-      const isHit = calledNumbers.includes(n);
-      d.className = 'lb-dot' + (isHit ? (s.isMine ? ' hit-mine' : ' hit') : '');
-      dots.appendChild(d);
-    });
-
-    row.appendChild(bar);
-    row.appendChild(rankEl);
-    row.appendChild(info);
-    row.appendChild(hitsEl);
-    row.appendChild(dots);
-    list.appendChild(row);
-    const gameLb = document.getElementById('gameLbList');
-if(gameLb) gameLb.innerHTML = list.innerHTML;
+    row.className = 'lb-row' + (s.isMine ? ' lb-mine' : '') + (rank===1 ? ' lb-top' : '');
+    row.innerHTML = `
+      <div class="lb-bar"></div>
+      <div class="lb-rank ${rank<=3?'r'+rank:''}">${rank===1?'👑':rank}</div>
+      <div class="lb-info">
+        <div class="lb-name">${s.label}</div>
+        <div class="lb-card-id">${s.needed===0?'🎉 BINGO!':s.needed+' away'}</div>
+      </div>
+      <div class="lb-hits">
+        <div class="lb-hit-num">${s.hits}</div>
+        <div class="lb-hit-label">hits</div>
+      </div>
+    `;
+    gameLb.appendChild(row);
   });
 }
-
 // ── DEPOSIT ──
 const amounts=[50,100,200,300,500,1000];
 const depGrid=document.getElementById('depositGrid');
@@ -2039,10 +2040,7 @@ document.querySelector('.dep-section').appendChild(wdSection);
 window.openPayModal=(amt)=>{
   const tg = window.Telegram?.WebApp;
   if(tg){
-    tg.close();
-    setTimeout(()=>{
-      tg.openTelegramLink(`https://t.me/Firstanywharebingobot?start=deposit_${amt}`);
-    }, 300);
+    tg.openLink(`https://t.me/Firstanywharebingobot?start=deposit_${amt}`);
   } else {
     window.open(`https://t.me/Firstanywharebingobot?start=deposit_${amt}`,'_blank');
   }
@@ -2051,10 +2049,7 @@ window.openPayModal=(amt)=>{
 window.openWithdraw=()=>{
   const tg = window.Telegram?.WebApp;
   if(tg){
-    tg.close();
-    setTimeout(()=>{
-      tg.openTelegramLink(`https://t.me/Firstanywharebingobot?start=withdraw_${userId}`);
-    }, 300);
+    tg.openLink(`https://t.me/Firstanywharebingobot?start=withdraw_${userId}`);
   } else {
     window.open(`https://t.me/Firstanywharebingobot?start=withdraw_${userId}`,'_blank');
   }
@@ -2085,4 +2080,4 @@ window.sendPayment=async()=>{
 };
 </script>
 </body>
-      </html>
+  </html>
