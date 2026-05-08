@@ -8,18 +8,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ══ SERVE index.html FROM ROOT ══
 app.use(express.static(__dirname));
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// ══ CONFIG ══
 const CLOUDINARY_CLOUD = 'diado1bxi';
 const CLOUDINARY_API_KEY = '117446111831141';
 const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_SECRET || 'biCrRU-O4tFt_icW8ONKE5POXJk';
 
-// ══ AMHARIC NUMBERS ══
 const AMHARIC_NUMBERS = {
   1:'አንድ',2:'ሁለት',3:'ሶስት',4:'አራት',5:'አምስት',
   6:'ስድስት',7:'ሰባት',8:'ስምንት',9:'ዘጠኝ',10:'አስር',
@@ -46,10 +43,8 @@ function getBingoLetter(n) {
   return 'ኦ';
 }
 
-// ══ TTS CACHE ══
 const ttsCache = {};
 
-// ══ msedge-tts ══
 async function fetchTTS(text) {
   const tts = new MsEdgeTTS();
   await tts.setMetadata(
@@ -70,10 +65,12 @@ async function fetchTTS(text) {
   });
 }
 
-// ══ TTS ENDPOINTS ══
+// ✅ TTS NUMBER — fixed validation
 app.get('/tts/number/:n', async (req, res) => {
   const n = parseInt(req.params.n);
-  if (!n || n < 1 || n > 75) {
+
+  if (isNaN(n) || n < 1 || n > 75) {
+    console.warn('TTS invalid number request:', req.params.n);
     return res.status(400).json({ error: 'Invalid number (1-75 only)' });
   }
 
@@ -89,6 +86,7 @@ app.get('/tts/number/:n', async (req, res) => {
     const letter = getBingoLetter(n);
     const numWord = AMHARIC_NUMBERS[n];
     const text = `${letter}... ${numWord}`;
+    console.log(`TTS generating: ${text}`);
     const { buffer, type } = await fetchTTS(text);
     ttsCache[key] = buffer;
     res.set('Content-Type', type);
@@ -106,7 +104,6 @@ app.get('/tts/winner', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=86400');
     return res.send(ttsCache['winner']);
   }
-
   try {
     const { buffer, type } = await fetchTTS('ቢንጎ! አሸናፊ ተገኘ!');
     ttsCache['winner'] = buffer;
@@ -120,8 +117,7 @@ app.get('/tts/winner', async (req, res) => {
 });
 
 app.get('/tts/warmup', async (req, res) => {
-  res.json({ ok: true, message: 'Warmup started in background' });
-
+  res.json({ ok: true, message: 'Warmup started' });
   (async () => {
     console.log('TTS Warmup starting...');
     for (let n = 1; n <= 75; n++) {
@@ -150,7 +146,6 @@ app.get('/tts/warmup', async (req, res) => {
   })();
 });
 
-// ══ CLOUDINARY SOUNDS ══
 let soundsMap = {};
 
 function loadCloudinarySounds() {
@@ -162,7 +157,6 @@ function loadCloudinarySounds() {
       method: 'GET',
       headers: { 'Authorization': `Basic ${auth}` }
     };
-
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -183,19 +177,15 @@ function loadCloudinarySounds() {
         resolve();
       });
     });
-
     req.on('error', (e) => {
       console.error('Cloudinary load error:', e.message);
       resolve();
     });
-
     req.end();
   });
 }
 
-app.get('/sounds-map', (req, res) => {
-  res.json(soundsMap);
-});
+app.get('/sounds-map', (req, res) => res.json(soundsMap));
 
 app.post('/sounds-reload', async (req, res) => {
   await loadCloudinarySounds();
@@ -205,19 +195,17 @@ app.post('/sounds-reload', async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    voice: 'am-ET-AmehaNeural (ወንድ)',
+    voice: 'am-ET-AmehaNeural',
     ttsCache: Object.keys(ttsCache).length,
     sounds: Object.keys(soundsMap).length,
     cachedNumbers: Object.keys(ttsCache).filter(k => k.startsWith('num_')).length
   });
 });
 
-// ══ START ══
 const PORT = process.env.PORT || 3001;
-
 loadCloudinarySounds().then(() => {
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🎙️ Voice: am-ET-AmehaNeural (ወንድ ድምፅ)`);
+    console.log(`🎙️ Voice: am-ET-AmehaNeural`);
   });
 });
