@@ -973,9 +973,6 @@ let payAmount = 0;
 let gameStarted = false;
 let cdPlayerTimer = null;
 let winnerShownTime = 0;
-let ttsQueue = [];
-let ttsBusy = false;
-let ttsReady = false;
 
 async function initApp() {
   try {
@@ -1002,7 +999,9 @@ async function initApp() {
 
   } catch(e) {
     console.error('Init error:', e);
-  } finally {
+} finally {
+    // Data ከተጫነ በኋላ ብቻ loading screen ዝጋ
+    await new Promise(resolve => setTimeout(resolve, 800));
     document.getElementById('loadingScreen').style.display = 'none';
   }
 }
@@ -1018,144 +1017,199 @@ initApp();
 // ════════════════════════════════════════════════════════
 
 // Pre-load voices (some browsers load async)
-function initVoices(){
-  if(window.speechSynthesis){
-    window.speechSynthesis.getVoices();
-    ttsReady = true;
-  }
-}
-initVoices();
-if(window.speechSynthesis){
-  window.speechSynthesis.onvoiceschanged = initVoices;
-}
-// ── SOUND EFFECTS ──
+
+// ════════════════════════════════════════════════
+// 🎵 PROFESSIONAL AMHARIC SOUND SYSTEM
+// ════════════════════════════════════════════════
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
+let unlocked = false;
+let ttsQueue = [];
+let ttsBusy = false;
 
-function getAudioCtx(){
-  if(!audioCtx) audioCtx = new AudioCtx();
+// ── Amharic Number Names ──
+const AM_NUMS = {
+  1:'አንድ',2:'ሁለት',3:'ሶስት',4:'አራት',5:'አምስት',
+  6:'ስድስት',7:'ሰባት',8:'ስምንት',9:'ዘጠኝ',10:'አስር',
+  11:'አስራ አንድ',12:'አስራ ሁለት',13:'አስራ ሶስት',14:'አስራ አራት',15:'አስራ አምስት',
+  16:'አስራ ስድስት',17:'አስራ ሰባት',18:'አስራ ስምንት',19:'አስራ ዘጠኝ',20:'ሃያ',
+  21:'ሃያ አንድ',22:'ሃያ ሁለት',23:'ሃያ ሶስት',24:'ሃያ አራት',25:'ሃያ አምስት',
+  26:'ሃያ ስድስት',27:'ሃያ ሰባት',28:'ሃያ ስምንት',29:'ሃያ ዘጠኝ',30:'ሰላሳ',
+  31:'ሰላሳ አንድ',32:'ሰላሳ ሁለት',33:'ሰላሳ ሶስት',34:'ሰላሳ አራት',35:'ሰላሳ አምስት',
+  36:'ሰላሳ ስድስት',37:'ሰላሳ ሰባት',38:'ሰላሳ ስምንት',39:'ሰላሳ ዘጠኝ',40:'አርባ',
+  41:'አርባ አንድ',42:'አርባ ሁለት',43:'አርባ ሶስት',44:'አርባ አራት',45:'አርባ አምስት',
+  46:'አርባ ስድስት',47:'አርባ ሰባት',48:'አርባ ስምንት',49:'አርባ ዘጠኝ',50:'አምሳ',
+  51:'አምሳ አንድ',52:'አምሳ ሁለት',53:'አምሳ ሶስት',54:'አምሳ አራት',55:'አምሳ አምስት',
+  56:'አምሳ ስድስት',57:'አምሳ ሰባት',58:'አምሳ ስምንት',59:'አምሳ ዘጠኝ',60:'ስልሳ',
+  61:'ስልሳ አንድ',62:'ስልሳ ሁለት',63:'ስልሳ ሶስት',64:'ስልሳ አራት',65:'ስልሳ አምስት',
+  66:'ስልሳ ስድስት',67:'ስልሳ ሰባት',68:'ስልሳ ስምንት',69:'ስልሳ ዘጠኝ',70:'ሰባ',
+  71:'ሰባ አንድ',72:'ሰባ ሁለት',73:'ሰባ ሶስት',74:'ሰባ አራት',75:'ሰባ አምስት'
+};
+
+const AM_LETTERS = { B:'ቢ', I:'አይ', N:'ኤን', G:'ጂ', O:'ኦ' };
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new AudioCtx();
   return audioCtx;
 }
 
-// ── Ding ድምፅ — number ሲጠራ ──
-function playDing(){
-  try{
-    const ctx = getAudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.3);
-    gain.gain.setValueAtTime(0.4, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.4);
-  } catch(e){}
-}
-
-// ── Click ድምፅ — card confirm ──
-function playClick(){
-  try{
-    const ctx = getAudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(600, ctx.currentTime);
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.15);
-  } catch(e){}
-}
-
-// ── Fanfare ድምፅ — አሸናፊ ሲኖር ──
-function playFanfare(){
-  try{
-    const ctx = getAudioCtx();
-    const notes = [523, 659, 784, 1047];
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = freq;
-      const start = ctx.currentTime + i * 0.18;
-      gain.gain.setValueAtTime(0.35, start);
-      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
-      osc.start(start);
-      osc.stop(start + 0.35);
-    });
-  } catch(e){}
-}
-// Unlock speech on first user touch (iOS / Telegram requirement)
-function unlockAudio(){
-  try{
-    // Speak empty string to warm up the engine
-    if(window.speechSynthesis){
+// ── iOS/Telegram Audio Unlock ──
+function unlockAudio() {
+  try {
+    if (!audioCtx) audioCtx = new AudioCtx();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (window.speechSynthesis) {
       const u = new SpeechSynthesisUtterance('');
       u.volume = 0;
       window.speechSynthesis.speak(u);
     }
-  } catch(e){}
+    unlocked = true;
+  } catch(e) {}
 }
-document.body.addEventListener('touchstart', unlockAudio, {once:true, passive:true});
-document.body.addEventListener('click', unlockAudio, {once:true});
+document.body.addEventListener('touchstart', unlockAudio, {passive:true});
+document.body.addEventListener('click', unlockAudio);
+// ── Web Audio Effects ──
+function playDing() {
+  try {
+    const ctx = getAudioCtx();
+    // Layer 1: main tone
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.connect(gain1); gain1.connect(ctx.destination);
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(1046, ctx.currentTime);
+    osc1.frequency.exponentialRampToValueAtTime(523, ctx.currentTime + 0.4);
+    gain1.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    osc1.start(ctx.currentTime);
+    osc1.stop(ctx.currentTime + 0.5);
+    // Layer 2: shimmer
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2); gain2.connect(ctx.destination);
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(2092, ctx.currentTime);
+    gain2.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc2.start(ctx.currentTime);
+    osc2.stop(ctx.currentTime + 0.3);
+  } catch(e) {}
+}
 
-// ── Core speak function ──
-function speakText(text){
-  return new Promise((resolve)=>{
-    try{
-      const synth = window.speechSynthesis;
-      if(!synth){ resolve(); return; }
+function playClick() {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  } catch(e) {}
+}
 
-      // Cancel any ongoing speech
-      synth.cancel();
+function playFanfare() {
+  try {
+    const ctx = getAudioCtx();
+    const melody = [
+      {f:523, t:0},    // C5
+      {f:659, t:0.15}, // E5
+      {f:784, t:0.30}, // G5
+      {f:1047,t:0.45}, // C6
+      {f:1319,t:0.60}, // E6
+      {f:1047,t:0.80}, // C6
+      {f:1319,t:0.95}, // E6
+      {f:1568,t:1.10}, // G6
+    ];
+    melody.forEach(({f, t}) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      const start = ctx.currentTime + t;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.4, start + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.28);
+      osc.start(start);
+      osc.stop(start + 0.3);
+    });
+  } catch(e) {}
+}
 
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.lang = 'en-US';
-      utt.rate = 0.88;   // slightly slow — clear for bingo
-      utt.pitch = 1.0;
-      utt.volume = 1.0;
-
-      // Pick best English voice available
-      const voices = synth.getVoices();
-      const preferred = voices.find(v =>
-        v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Samantha') || v.name.includes('Daniel'))
-      ) || voices.find(v => v.lang.startsWith('en'));
-      if(preferred) utt.voice = preferred;
-
-      utt.onend = resolve;
-      utt.onerror = resolve;
-
-      // Telegram WebView sometimes needs a tiny delay
-      setTimeout(()=> synth.speak(utt), 80);
-    } catch(e){ resolve(); }
+// ── Amharic TTS ──
+function speakAmharic(text) {
+  return new Promise((resolve) => {
+    if (!window.speechSynthesis) { resolve(); return; }
+    // Cancel any stuck speech
+    window.speechSynthesis.cancel();
+    const utt = new SpeechSynthesisUtterance(text);
+    // Try to find Amharic voice, fallback to any available
+    const voices = window.speechSynthesis.getVoices();
+    const amVoice = voices.find(v => v.lang.startsWith('am') || v.lang.startsWith('ti'));
+    if (amVoice) utt.voice = amVoice;
+    utt.lang = 'am-ET';
+    utt.rate = 0.88;
+    utt.pitch = 1.05;
+    utt.volume = 1.0;
+    utt.onend = () => resolve();
+    utt.onerror = () => resolve();
+    // Timeout fallback — 4 seconds max
+    const timeout = setTimeout(() => { window.speechSynthesis.cancel(); resolve(); }, 4000);
+    utt.onend = () => { clearTimeout(timeout); resolve(); };
+    window.speechSynthesis.speak(utt);
   });
 }
 
-function enqueueTTS(text){
+// ── Queue System ──
+function enqueueTTS(text) {
   ttsQueue.push(text);
-  if(!ttsBusy) processTTSQueue();
+  if (!ttsBusy) processTTSQueue();
 }
 
-async function processTTSQueue(){
-  if(ttsQueue.length===0){ ttsBusy=false; return; }
-  ttsBusy=true;
+async function processTTSQueue() {
+  if (ttsQueue.length === 0) { ttsBusy = false; return; }
+  ttsBusy = true;
   const text = ttsQueue.shift();
-  await speakText(text);
+  await speakAmharic(text);
+  // Small gap between announcements
+  await new Promise(r => setTimeout(r, 200));
   processTTSQueue();
 }
 
-// ── Number announcement: "B — 5", "N — 32" etc. ──
-function speakNumber(n){
-  const letter = getLetter(n);
-  // Spell out letter then number clearly
-  // e.g. "B. 5", "I. 16", "N. 32"
-  enqueueTTS(letter + '. ' + n);
+// ── Main: Speak Bingo Number ──
+// Plays: ding sound + "ቢ — አምስት" in Amharic
+// ── Auto unlock — function ውጭ ያለ ──
+let audioUnlocked = false;
+document.addEventListener('touchstart', function unlockOnce() {
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+  unlockAudio();
+  const silence = new Audio();
+  silence.play().catch(()=>{});
+}, {passive: true, once: true});
+
+function speakNumber(n) {
+  unlockAudio();
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  playDing();
+  setTimeout(() => {
+    const audio = new Audio(`https://admin-panel-production-b31a.up.railway.app/tts/number/${n}`);
+    audio.volume = 1.0;
+    audio.play().catch(() => {});
+  }, 350);
 }
+  
+// ════════════════════════════════════════════════
+// ── Core speak function ──
+// ── Pre-recorded Audio ──
+const audioCache = {};
+
+
 
 // ── BOARDS ──
 const boards = {};
@@ -1306,6 +1360,13 @@ function updateCardGrid(data){
 
 // ── CONFIRM ──
 window.confirmCard = async () => {
+  // Audio unlock
+  try {
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    const silence = new Audio();
+    silence.play().catch(()=>{});
+  } catch(e) {}
+
   if(!selectedCard){ showToast('👉 Card ምረጥ!'); return; }
   if(gameStarted){ showToast('🔒 Game ጀምሯል!'); return; }
 
@@ -1492,11 +1553,6 @@ onValue(ref(db,'game/calledNumbers'),s=>{
   const vals=Object.values(data);
   const last=vals[vals.length-1];
 
-  if(last&&!calledNumbers.includes(last)){
-    playDing();
-    speakNumber(last);
-  }
-
   calledNumbers=vals;
   vals.forEach(n=>{const el=document.getElementById('num'+n);if(el)el.classList.add('called');});
 
@@ -1504,6 +1560,7 @@ onValue(ref(db,'game/calledNumbers'),s=>{
     const l=getLetter(last);
     document.getElementById('lcNum').innerHTML=`<span class="lc-letter">${l}</span>${last}`;
   }
+  if(last) speakNumber(last);
 
   const mb=document.getElementById('miniBalls');mb.innerHTML='';
   [...vals].reverse().slice(0,10).forEach(n=>{
@@ -1540,35 +1597,38 @@ onValue(ref(db,'game/announcement'),async s=>{
     document.getElementById('winnerCardDisplay').textContent = namesList;
     document.getElementById('winnerPrizeDisplay').textContent = share > 0 ? share : data.prize || 0;
   }
-playFanfare();
+
+  
+ 
+    playFanfare();
 spawnConfetti();
 document.getElementById('winnerOverlay').classList.add('show');
 
-// ✅ Winner board render
 const myWin = winners.find(w=>String(w.user)===String(userId));
 const showCard = myWin || winners[0];
 if(showCard) renderWinnerBoard(Number(showCard.cardId), calledNumbers);
 
-  const fill=document.getElementById('cdFill');
-  fill.style.animation='none';
-  fill.offsetHeight;
-  fill.style.animation='cdFill 5s linear forwards';
-  
-  if(myWin){
-    enqueueTTS('Congratulations! You won! Bingo!');
-  } else {
-    enqueueTTS('Bingo! We have a winner!');
-  }
+const fill=document.getElementById('cdFill');
+fill.style.animation='none';
+fill.offsetHeight;
+fill.style.animation='cdFill 5s linear forwards';
 
-  setTimeout(()=>{
+// ሁሉም ይሰማሉ
+playFanfare();
+setTimeout(()=>{
+  const audio = new Audio(`https://admin-panel-production-b31a.up.railway.app/tts/winner`);
+  audio.play().catch(()=>{});
+}, 800);
+
+setTimeout(()=>{
   document.getElementById('winnerOverlay').classList.remove('show');
   clearConfetti();
   document.getElementById('winnerBoardWrap').innerHTML='';
 },5000);
 
-  if(myWin){
-    setTimeout(()=>{showToast('🎉 '+(share>0?share:data.prize||0)+' ብር balance ላይ ታከለ!');},1000);
-  }
+if(myWin){
+  setTimeout(()=>{showToast('🎉 '+(share>0?share:data.prize||0)+' ብር balance ላይ ታከለ!');},1000);
+}
 });
 // ── RESET ──
 onValue(ref(db,'game/reset'),s=>{
@@ -1652,6 +1712,10 @@ function spawnConfetti(){
 function clearConfetti(){ document.getElementById('confettiWrap').innerHTML=''; }
 
 // ── TV ──
+document.getElementById('gameScreen').addEventListener('touchstart', ()=>{
+  unlockAudio();
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}, {passive:true});
 function buildTV(){
   const tg2=document.getElementById('tvGrid');tg2.innerHTML='';
   ['B','I','N','G','O'].forEach(h=>{
@@ -2065,6 +2129,8 @@ window.sendPayment=async()=>{
     const r=sRef(storage,'payments/'+name);
     await uploadBytes(r,file);
     const url=await getDownloadURL(r);
+    // ── Winner global announce ──
+
     await push(ref(db,'payments'),{user_id:userId,amount:payAmount,image:url,status:'pending',time:Date.now()});
     showToast('✅ Sent! Admin ያረጋግጣል');
     closePayModal();
