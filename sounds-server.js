@@ -57,11 +57,16 @@ async function fetchTTS(text) {
     OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
   );
   return new Promise((resolve, reject) => {
-    const { audioStream } = tts.toStream(text);
-    const chunks = [];
-    audioStream.on('data', chunk => chunks.push(chunk));
-    audioStream.on('end', () => resolve({ buffer: Buffer.concat(chunks), type: 'audio/mpeg' }));
-    audioStream.on('error', reject);
+    try {
+      const readable = tts.toStream(text);
+      const audioStream = readable.audioStream || readable;
+      const chunks = [];
+      audioStream.on('data', chunk => chunks.push(chunk));
+      audioStream.on('end', () => resolve({ buffer: Buffer.concat(chunks), type: 'audio/mpeg' }));
+      audioStream.on('error', err => reject(err));
+    } catch(e) {
+      reject(e);
+    }
   });
 }
 
