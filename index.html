@@ -1227,11 +1227,12 @@ document.addEventListener('touchstart', function unlockOnce() {
 
 function speakNumber(n) {
   if(!soundEnabled) return;
+  const num = parseInt(n);
+  if(isNaN(num) || num < 1 || num > 75) return;
   unlockAudio();
-  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  const audio = new Audio(`https://game-production-7f86.up.railway.app/tts/number/${n}`);
+  const audio = new Audio(`https://game-production-7f86.up.railway.app/tts/number/${num}`);
   audio.volume = 1.0;
-  audio.play().catch(() => {});
+  audio.play().catch(()=>{});
 }
   
 // ════════════════════════════════════════════════
@@ -1590,7 +1591,9 @@ onValue(ref(db,'game/calledNumbers'),s=>{
     const l=getLetter(last);
     document.getElementById('lcNum').innerHTML=`<span class="lc-letter">${l}</span>${last}`;
   }
-  if(last) speakNumber(last);
+  if(!isNaN(parseInt(last)) && parseInt(last) >= 1 && parseInt(last) <= 75){
+  speakNumber(parseInt(last));
+}
 
   const mb=document.getElementById('miniBalls');mb.innerHTML='';
   [...vals].reverse().slice(0,10).forEach(n=>{
@@ -1645,8 +1648,18 @@ fill.style.animation='cdFill 5s linear forwards';
 
 // ሁሉም ይሰማሉ
 setTimeout(()=>{
-  const audio = new Audio(`https://game-production-7f86.up.railway.app/tts/winner`);
-  audio.play().catch(()=>{});
+  fetch(`https://game-production-7f86.up.railway.app/tts/winner`)
+    .then(r => r.arrayBuffer())
+    .then(buf => {
+      const ctx = getAudioCtx();
+      ctx.decodeAudioData(buf, decoded => {
+        const src = ctx.createBufferSource();
+        src.buffer = decoded;
+        src.connect(ctx.destination);
+        src.start(0);
+      });
+    })
+    .catch(()=>{});
 }, 800);
 
 setTimeout(()=>{
