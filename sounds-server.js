@@ -1,11 +1,18 @@
 const express = require('express');
 const cors = require('cors');
 const https = require('https');
-const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts'); // ✅ msedge-tts
+const path = require('path');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ══ SERVE index.html FROM ROOT ══
+app.use(express.static(__dirname));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // ══ CONFIG ══
 const CLOUDINARY_CLOUD = 'diado1bxi';
@@ -42,11 +49,11 @@ function getBingoLetter(n) {
 // ══ TTS CACHE ══
 const ttsCache = {};
 
-// ══ msedge-tts — ወንድ አማርኛ ድምፅ (am-ET-AmehaNeural) ══
+// ══ msedge-tts ══
 async function fetchTTS(text) {
   const tts = new MsEdgeTTS();
   await tts.setMetadata(
-    'am-ET-AmehaNeural',  // ✅ ወንድ ድምፅ
+    'am-ET-AmehaNeural',
     OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
   );
   return new Promise((resolve, reject) => {
@@ -59,7 +66,6 @@ async function fetchTTS(text) {
 }
 
 // ══ TTS ENDPOINTS ══
-
 app.get('/tts/number/:n', async (req, res) => {
   const n = parseInt(req.params.n);
   if (!n || n < 1 || n > 75) {
