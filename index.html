@@ -651,6 +651,12 @@ body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:8px;">
     <div class="logo">BINGO</div>
+<button id="soundToggle" onclick="toggleSound()" style="
+  background:var(--card);border:1px solid var(--border);
+  border-radius:20px;padding:4px 10px;
+  font-size:0.7rem;font-weight:700;color:var(--green);
+  cursor:pointer;font-family:'Outfit',sans-serif;
+">🔊 ON</button>
     <div id="topCdBadge" style="display:none;background:#001a20;border:1px solid #00e5ff;border-radius:20px;padding:3px 8px;align-items:center;gap:3px;">
       <span style="font-size:0.65rem;">⏱</span>
       <span style="color:#00e5ff;font-family:'Bebas Neue',sans-serif;font-size:0.85rem;letter-spacing:1px;" id="topCdVal">--:--</span>
@@ -1068,6 +1074,32 @@ function unlockAudio() {
 }
 document.body.addEventListener('touchstart', unlockAudio, {passive:true});
 document.body.addEventListener('click', unlockAudio);
+// ── SOUND TOGGLE ──
+let soundEnabled = localStorage.getItem('bingo_sound') !== 'off';
+
+window.toggleSound = function() {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem('bingo_sound', soundEnabled ? 'on' : 'off');
+  const btn = document.getElementById('soundToggle');
+  if(soundEnabled) {
+    btn.textContent = '🔊 ON';
+    btn.style.color = 'var(--green)';
+    unlockAudio();
+    try {
+      const silence = new Audio();
+      silence.play().catch(()=>{});
+    } catch(e) {}
+  } else {
+    btn.textContent = '🔇 OFF';
+    btn.style.color = 'var(--red)';
+  }
+}
+
+// Page ሲከፈት state ያስታውስ
+if(!soundEnabled) {
+  document.getElementById('soundToggle').textContent = '🔇 OFF';
+  document.getElementById('soundToggle').style.color = 'var(--red)';
+}
 // ── Web Audio Effects ──
 function playDing() {
   try {
@@ -1194,14 +1226,12 @@ document.addEventListener('touchstart', function unlockOnce() {
 }, {passive: true, once: true});
 
 function speakNumber(n) {
+  if(!soundEnabled) return;
   unlockAudio();
   if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  playDing();
-  setTimeout(() => {
-    const audio = new Audio(`https://admin-panel-production-b31a.up.railway.app/tts/number/${n}`);
-    audio.volume = 1.0;
-    audio.play().catch(() => {});
-  }, 350);
+  const audio = new Audio(`https://game-production-7f86.up.railway.app/tts/number/${n}`);
+  audio.volume = 1.0;
+  audio.play().catch(() => {});
 }
   
 // ════════════════════════════════════════════════
@@ -1614,9 +1644,8 @@ fill.offsetHeight;
 fill.style.animation='cdFill 5s linear forwards';
 
 // ሁሉም ይሰማሉ
-playFanfare();
 setTimeout(()=>{
-  const audio = new Audio(`https://admin-panel-production-b31a.up.railway.app/tts/winner`);
+  const audio = new Audio(`https://game-production-7f86.up.railway.app/tts/winner`);
   audio.play().catch(()=>{});
 }, 800);
 
@@ -2138,4 +2167,4 @@ window.sendPayment=async()=>{
 };
 </script>
 </body>
-      </html>
+  </html>
