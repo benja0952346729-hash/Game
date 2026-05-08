@@ -45,32 +45,51 @@ function getBingoLetter(n) {
 
 const ttsCache = {};
 
-async function fetchTTS(text) {
-  const tts = new MsEdgeTTS();
-  await tts.setMetadata(
-    'am-ET-AmehaNeural',
-    OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
-  );
-  return new Promise((resolve, reject) => {
+async function fetchTTS(text, retries = 3) {
+  for (let i = 0; i < retries; i++) {
     try {
-      const readable = tts.toStream(text);
-      const audioStream = readable.audioStream || readable;
-      const chunks = [];
-      audioStream.on('data', chunk => chunks.push(chunk));
-      audioStream.on('end', () => resolve({ buffer: Buffer.concat(chunks), type: 'audio/mpeg' }));
-      audioStream.on('error', err => reject(err));
+      const tts = new MsEdgeTTS();
+      await tts.setMetadata(
+        'am-ET-AmehaNeural',
+        OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
+      );
+      const result = await new Promise((resolve, reject) => {
+        try {
+          const readable = tts.toStream(text);
+          const audioStream = readable.audioStream || readable;
+          const chunks = [];
+          audioStream.on('data', chunk => chunks.push(chunk));
+          audioStream.on('end', () => {
+            const buffer = Buffer.concat(chunks);
+            if (buffer.length === 0) {
+              reject(new Error('Empty audio buffer'));
+              return;
+            }
+            console.log(`TTS success: "${text}" — ${buffer.length} bytes`);
+            resolve({ buffer, type: 'audio/mpeg' });
+          });
+          audioStream.on('error', err => reject(err));
+        } catch(e) {
+          reject(e);
+        }
+      });
+      return result;
     } catch(e) {
-      reject(e);
+      console.error(`TTS attempt ${i+1}/${retries} failed: ${e.message}`);
+      if (i < retries - 1) {
+        await new Promise(r => setTimeout(r, 1500));
+      } else {
+        throw e;
+      }
     }
-  });
+  }
 }
 
-// ✅ TTS NUMBER — fixed validation
 app.get('/tts/number/:n', async (req, res) => {
   const n = parseInt(req.params.n);
 
   if (isNaN(n) || n < 1 || n > 75) {
-    console.warn('TTS invalid number request:', req.params.n);
+    console.warn('TTS invalid number:', req.params.n);
     return res.status(400).json({ error: 'Invalid number (1-75 only)' });
   }
 
@@ -93,7 +112,7 @@ app.get('/tts/number/:n', async (req, res) => {
     res.set('Cache-Control', 'public, max-age=86400');
     res.send(buffer);
   } catch (e) {
-    console.error('TTS number error:', e.message);
+    console.error('TTS number error:', e.message, '|', e.stack?.split('\n')[0]);
     res.status(500).json({ error: 'TTS failed', detail: e.message });
   }
 });
@@ -129,17 +148,17 @@ app.get('/tts/warmup', async (req, res) => {
         const text = `${letter}... ${numWord}`;
         const { buffer } = await fetchTTS(text);
         ttsCache[key] = buffer;
-        console.log(`Cached: ${n}`);
-        await new Promise(r => setTimeout(r, 200));
+        console.log(`Warmup cached: ${n}`);
+        await new Promise(r => setTimeout(r, 300));
       } catch (e) {
-        console.error(`Failed: ${n} — ${e.message}`);
+        console.error(`Warmup failed: ${n} — ${e.message}`);
       }
     }
     try {
       if (!ttsCache['winner']) {
         const { buffer } = await fetchTTS('ቢንጎ! አሸናፊ ተገኘ!');
         ttsCache['winner'] = buffer;
-        console.log('Cached: winner');
+        console.log('Warmup cached: winner');
       }
     } catch(e) {}
     console.log('Warmup complete!');
@@ -163,30 +182,25 @@ function loadCloudinarySounds() {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
-          const resources = json.resources || [];
           soundsMap = {};
-          resources.forEach(r => {
+          (json.resources || []).forEach(r => {
             const match = r.public_id.match(/^([A-Z]+\d+)/);
             const key = match ? match[1] : r.public_id;
             soundsMap[key] = r.secure_url;
           });
-          console.log(`Loaded ${Object.keys(soundsMap).length} sounds from Cloudinary`);
+          console.log(`Loaded ${Object.keys(soundsMap).length} sounds`);
         } catch (e) {
           console.error('Cloudinary parse error:', e.message);
         }
         resolve();
       });
     });
-    req.on('error', (e) => {
-      console.error('Cloudinary load error:', e.message);
-      resolve();
-    });
+    req.on('error', (e) => { console.error('Cloudinary error:', e.message); resolve(); });
     req.end();
   });
 }
 
 app.get('/sounds-map', (req, res) => res.json(soundsMap));
-
 app.post('/sounds-reload', async (req, res) => {
   await loadCloudinarySounds();
   res.json({ ok: true, count: Object.keys(soundsMap).length });
@@ -197,15 +211,15 @@ app.get('/health', (req, res) => {
     status: 'ok',
     voice: 'am-ET-AmehaNeural',
     ttsCache: Object.keys(ttsCache).length,
-    sounds: Object.keys(soundsMap).length,
-    cachedNumbers: Object.keys(ttsCache).filter(k => k.startsWith('num_')).length
+    cachedNumbers: Object.keys(ttsCache).filter(k => k.startsWith('num_')).length,
+    sounds: Object.keys(soundsMap).length
   });
 });
 
 const PORT = process.env.PORT || 3001;
 loadCloudinarySounds().then(() => {
   app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🚀 Server on port ${PORT}`);
     console.log(`🎙️ Voice: am-ET-AmehaNeural`);
   });
 });
