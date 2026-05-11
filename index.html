@@ -1644,7 +1644,7 @@ if(tg?.initDataUnsafe?.user){
   userId = localStorage.getItem('bingo_uid') || ('guest_'+Date.now());
   localStorage.setItem('bingo_uid', userId);
 }
-document.getElementById('userIdShow').textContent = userId;
+document.getElementById('userIdShow').textContent = tg?.initDataUnsafe?.user?.first_name || userId;
 
 // ── STATE ──
 let confirmedCards = [];
