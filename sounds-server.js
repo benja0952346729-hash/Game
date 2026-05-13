@@ -127,6 +127,31 @@ app.get('/tts/winner', async (req, res) => {
     res.status(500).json({ error: 'TTS failed' });
   }
 });
+app.get('/tts/winner-announce', async (req, res) => {
+  if(ttsCache['winner_announce']) {
+    res.set('Content-Type', 'audio/mpeg');
+    return res.send(ttsCache['winner_announce']);
+  }
+  try {
+    const { buffer } = await fetchTTS('ቢንጎ አሸናፊ ተገኝቷል');
+    ttsCache['winner_announce'] = buffer;
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(buffer);
+  } catch(e) { res.status(500).json({ error: 'TTS failed' }); }
+});
+
+app.get('/tts/bingo', async (req, res) => {
+  if(ttsCache['bingo']) {
+    res.set('Content-Type', 'audio/mpeg');
+    return res.send(ttsCache['bingo']);
+  }
+  try {
+    const { buffer } = await fetchTTS('ቢንጎ');
+    ttsCache['bingo'] = buffer;
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(buffer);
+  } catch(e) { res.status(500).json({ error: 'TTS failed' }); }
+});
 
 app.get('/tts/warmup', async (req, res) => {
   res.json({ ok: true });
