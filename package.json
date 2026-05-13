@@ -1,9 +1,9 @@
 {
   "name": "bingo-game",
   "version": "1.0.0",
-  "main": "sounds-server.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node sounds-server.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
