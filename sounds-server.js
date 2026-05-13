@@ -12,10 +12,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-const CLOUDINARY_CLOUD = 'diado1bxi';
-const CLOUDINARY_API_KEY = '117446111831141';
-const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_SECRET || 'biCrRU-O4tFt_icW8ONKE5POXJk';
-
 const AMHARIC_NUMBERS = {
   1:'አንድ',2:'ሁለት',3:'ሶስት',4:'አራት',5:'አምስት',
   6:'ስድስት',7:'ሰባት',8:'ስምንት',9:'ዘጠኝ',10:'አስር',
@@ -42,10 +38,8 @@ function getBingoLetter(n) {
   return 'ኦ';
 }
 
-// ── TTS CACHE ──
 const ttsCache = {};
 
-// ── Google Translate TTS ──
 async function fetchTTS(text) {
   return new Promise((resolve, reject) => {
     const encoded = encodeURIComponent(text);
@@ -59,30 +53,24 @@ async function fetchTTS(text) {
     };
 
     const req = https.get(options, (res) => {
-      // Handle redirect
       if (res.statusCode === 301 || res.statusCode === 302) {
         const redirectUrl = new URL(res.headers.location);
-        const redirectOptions = {
+        https.get({
           hostname: redirectUrl.hostname,
           path: redirectUrl.pathname + redirectUrl.search,
-          method: 'GET',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          }
-        };
-        https.get(redirectOptions, (res2) => {
+          headers: { 'User-Agent': 'Mozilla/5.0' }
+        }, (res2) => {
           const chunks = [];
           res2.on('data', chunk => chunks.push(chunk));
           res2.on('end', () => {
             const buffer = Buffer.concat(chunks);
-            if (buffer.length < 100) reject(new Error('Empty response after redirect'));
+            if (buffer.length < 100) reject(new Error('Empty response'));
             else resolve({ buffer, type: 'audio/mpeg' });
           });
           res2.on('error', reject);
         }).on('error', reject);
         return;
       }
-
       const chunks = [];
       res.on('data', chunk => chunks.push(chunk));
       res.on('end', () => {
@@ -96,151 +84,80 @@ async function fetchTTS(text) {
     req.on('error', reject);
     req.setTimeout(10000, () => {
       req.destroy();
-      reject(new Error('Request timeout'));
+      reject(new Error('Timeout'));
     });
   });
 }
 
-// ── TTS NUMBER ENDPOINT ──
+// ── TTS NUMBER ──
 app.get('/tts/number/:n', async (req, res) => {
   const n = parseInt(req.params.n);
-
-  if (isNaN(n) || n < 1 || n > 75) {
-    console.warn('TTS invalid number:', req.params.n);
-    return res.status(400).json({ error: 'Invalid number (1-75 only)' });
-  }
+  if (isNaN(n) || n < 1 || n > 75)
+    return res.status(400).json({ error: 'Invalid number' });
 
   const key = 'num_' + n;
-
   if (ttsCache[key]) {
     res.set('Content-Type', 'audio/mpeg');
-    res.set('Cache-Control', 'public, max-age=86400');
     return res.send(ttsCache[key]);
   }
 
   try {
-    const letter = getBingoLetter(n);
-    const numWord = AMHARIC_NUMBERS[n];
-    const text = `${letter} ${numWord}`;
-    console.log(`TTS generating: ${text}`);
-    const { buffer, type } = await fetchTTS(text);
+    const text = `${getBingoLetter(n)} ${AMHARIC_NUMBERS[n]}`;
+    console.log(`TTS: ${text}`);
+    const { buffer } = await fetchTTS(text);
     ttsCache[key] = buffer;
-    console.log(`TTS cached: ${n} (${buffer.length} bytes)`);
-    res.set('Content-Type', type);
-    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Content-Type', 'audio/mpeg');
     res.send(buffer);
   } catch (e) {
-    console.error('TTS number error:', e.message);
-    res.status(500).json({ error: 'TTS failed', detail: e.message });
+    console.error('TTS error:', e.message);
+    res.status(500).json({ error: 'TTS failed' });
   }
 });
 
-// ── TTS WINNER ENDPOINT ──
+// ── TTS WINNER ──
 app.get('/tts/winner', async (req, res) => {
   if (ttsCache['winner']) {
     res.set('Content-Type', 'audio/mpeg');
-    res.set('Cache-Control', 'public, max-age=86400');
     return res.send(ttsCache['winner']);
   }
   try {
-    const { buffer, type } = await fetchTTS('ቢንጎ አሸናፊ ተገኘ');
+    const { buffer } = await fetchTTS('ቢንጎ አሸናፊ ተገኘ');
     ttsCache['winner'] = buffer;
-    res.set('Content-Type', type);
-    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Content-Type', 'audio/mpeg');
     res.send(buffer);
   } catch (e) {
-    console.error('TTS winner error:', e.message);
-    res.status(500).json({ error: 'TTS failed', detail: e.message });
+    res.status(500).json({ error: 'TTS failed' });
   }
 });
 
 // ── WARMUP ──
 app.get('/tts/warmup', async (req, res) => {
-  res.json({ ok: true, message: 'Warmup started' });
-  (async () => {
-    console.log('TTS Warmup starting...');
-    for (let n = 1; n <= 75; n++) {
-      const key = 'num_' + n;
-      if (ttsCache[key]) continue;
-      try {
-        const letter = getBingoLetter(n);
-        const numWord = AMHARIC_NUMBERS[n];
-        const text = `${letter} ${numWord}`;
-        const { buffer } = await fetchTTS(text);
-        ttsCache[key] = buffer;
-        console.log(`Warmup cached: ${n}`);
-        await new Promise(r => setTimeout(r, 500));
-      } catch (e) {
-        console.error(`Warmup failed: ${n} — ${e.message}`);
-      }
-    }
+  res.json({ ok: true });
+  for (let n = 1; n <= 75; n++) {
+    const key = 'num_' + n;
+    if (ttsCache[key]) continue;
     try {
-      if (!ttsCache['winner']) {
-        const { buffer } = await fetchTTS('ቢንጎ አሸናፊ ተገኘ');
-        ttsCache['winner'] = buffer;
-        console.log('Warmup cached: winner');
-      }
-    } catch(e) {}
-    console.log('Warmup complete!');
-  })();
+      const text = `${getBingoLetter(n)} ${AMHARIC_NUMBERS[n]}`;
+      const { buffer } = await fetchTTS(text);
+      ttsCache[key] = buffer;
+      console.log(`Warmup: ${n}/75`);
+      await new Promise(r => setTimeout(r, 500));
+    } catch (e) {
+      console.error(`Warmup failed: ${n}`);
+    }
+  }
 });
 
-// ── CLOUDINARY SOUNDS ──
-let soundsMap = {};
-
-function loadCloudinarySounds() {
-  return new Promise((resolve) => {
-    const auth = Buffer.from(`${CLOUDINARY_API_KEY}:${CLOUDINARY_API_SECRET}`).toString('base64');
-    const options = {
-      hostname: 'api.cloudinary.com',
-      path: `/v1_1/${CLOUDINARY_CLOUD}/resources/video?max_results=100`,
-      method: 'GET',
-      headers: { 'Authorization': `Basic ${auth}` }
-    };
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          soundsMap = {};
-          (json.resources || []).forEach(r => {
-            const match = r.public_id.match(/^([A-Z]+\d+)/);
-            const key = match ? match[1] : r.public_id;
-            soundsMap[key] = r.secure_url;
-          });
-          console.log(`Loaded ${Object.keys(soundsMap).length} sounds`);
-        } catch (e) {
-          console.error('Cloudinary parse error:', e.message);
-        }
-        resolve();
-      });
-    });
-    req.on('error', (e) => { console.error('Cloudinary error:', e.message); resolve(); });
-    req.end();
-  });
-}
-
-app.get('/sounds-map', (req, res) => res.json(soundsMap));
-app.post('/sounds-reload', async (req, res) => {
-  await loadCloudinarySounds();
-  res.json({ ok: true, count: Object.keys(soundsMap).length });
-});
-
+// ── HEALTH ──
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    ttsEngine: 'Google Translate',
-    ttsCache: Object.keys(ttsCache).length,
-    cachedNumbers: Object.keys(ttsCache).filter(k => k.startsWith('num_')).length,
-    sounds: Object.keys(soundsMap).length
+    cached: Object.keys(ttsCache).length
   });
 });
 
 const PORT = process.env.PORT || 3001;
-loadCloudinarySounds().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Server on port ${PORT}`);
-    console.log(`🎙️ TTS Engine: Google Translate`);
-  });
+app.listen(PORT, () => {
+  console.log(`🚀 Server on port ${PORT}`);
+  console.log(`🎙️ TTS ready`);
 });
