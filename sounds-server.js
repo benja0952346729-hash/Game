@@ -89,7 +89,6 @@ async function fetchTTS(text) {
   });
 }
 
-// ── TTS NUMBER ──
 app.get('/tts/number/:n', async (req, res) => {
   const n = parseInt(req.params.n);
   if (isNaN(n) || n < 1 || n > 75)
@@ -114,7 +113,6 @@ app.get('/tts/number/:n', async (req, res) => {
   }
 });
 
-// ── TTS WINNER ──
 app.get('/tts/winner', async (req, res) => {
   if (ttsCache['winner']) {
     res.set('Content-Type', 'audio/mpeg');
@@ -130,7 +128,6 @@ app.get('/tts/winner', async (req, res) => {
   }
 });
 
-// ── WARMUP ──
 app.get('/tts/warmup', async (req, res) => {
   res.json({ ok: true });
   for (let n = 1; n <= 75; n++) {
@@ -148,7 +145,6 @@ app.get('/tts/warmup', async (req, res) => {
   }
 });
 
-// ── HEALTH ──
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -158,6 +154,6 @@ app.get('/health', (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`🚀 Server on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🎙️ TTS ready`);
 });
