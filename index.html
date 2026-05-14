@@ -3063,7 +3063,26 @@ function renderGameLeaderboard(){
     gameLb.appendChild(row);
   });
 }
-
+window.openPayModal=(amt)=>{
+  const url = `https://t.me/Firstanywharebingobot?start=deposit_${amt}`;
+  if(window.Telegram?.WebApp){
+    window.Telegram.WebApp.openTelegramLink(url);
+  }
+};
+window.openWithdraw=()=>{
+  try{
+    const uid = window.Telegram?.WebApp?.initDataUnsafe?.user?.id 
+                || localStorage.getItem('bingo_uid') 
+                || userId;
+    const url = `https://t.me/Firstanywharebingobot?start=withdraw_${uid}`;
+    if(window.Telegram?.WebApp){
+      window.Telegram.WebApp.openTelegramLink(url);
+    }
+  }catch(e){
+    showToast('❌ Bot መክፈት አልተቻለም');
+  }
+};
+window.closePayModal=()=>document.getElementById('payModal').classList.remove('open');
 // ── DEPOSIT ──
 const amounts=[50,100,200,300,500,1000];
 const depGrid=document.getElementById('depositGrid');
