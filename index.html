@@ -1278,7 +1278,7 @@ window.closeWelcome = function(){
       <div class="badge">💸<span class="val" id="betGame">0</span></div>
       <div class="badge">🏆<span class="val" id="prizeGame">0</span></div>
     </div>
-    <button class="btn" style="background:var(--card);border:1px solid var(--border);padding:6px 12px;font-size:0.75rem;color:var(--muted);" onclick="showScreen('selectScreen')">Cards</button>
+    <button class="btn" style="background:var(--card);border:1px solid var(--border);padding:6px 12px;font-size:0.75rem;color:var(--muted);" onclick="showScreen('selectScreen')">ካርዶች</button>
   </div>
 
   <!-- Last Called - full width -->
@@ -1294,7 +1294,7 @@ window.closeWelcome = function(){
       </div>
       <!-- MY CARD -->
       <div style="margin-top:6px;overflow-y:auto;flex:1;padding-bottom:4px;">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:0.7rem;letter-spacing:2px;color:var(--green);padding:2px 0 4px;">✅ MY CARD</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:0.7rem;letter-spacing:2px;color:var(--green);padding:2px 0 4px;">✅ የኔ ካርድ</div>
         <div id="myGameCard"></div>
       </div>
     </div>
@@ -1302,7 +1302,7 @@ window.closeWelcome = function(){
     <!-- RIGHT: Leaderboard — 4 rows visible then scroll -->
     <div style="width:40%;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
 <div style="display:flex;align-items:center;justify-content:center;padding:4px 6px;flex-shrink:0;border-bottom:1px solid var(--border);">
-  <div style="font-family:'Bebas Neue',sans-serif;font-size:0.7rem;letter-spacing:2px;color:var(--gold);">🏆 LEAD</div>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:0.7rem;letter-spacing:2px;color:var(--gold);">🏆 ደረጃ</div>
 </div>
 <div id="miniBalls" style="display:none;"></div>
       <div id="gameLbList" style="overflow-y:scroll;flex:1;padding:0 4px 4px;max-height:100%;"></div>
@@ -1675,6 +1675,7 @@ if(data.bet !== undefined) document.getElementById('betShow').textContent = data
     }
   }
 }
+
   if(data.type === 'winner') {
     const now = Date.now();
     if(now - winnerShownTime < 8000) return;
@@ -2772,7 +2773,7 @@ window.goLive=()=>{
 function renderMyCards(){
   const box=document.getElementById('myCardsList');box.innerHTML='';
   if(confirmedCards.length===0){
-    box.innerHTML='<p style="color:var(--muted);text-align:center;padding:20px;">No cards confirmed yet</p>';
+    box.innerHTML='<p style="color:var(--muted);text-align:center;padding:20px;">ምንም ካርድ አልተያዘም</p>';
     return;
   }
   confirmedCards.forEach(id=>{
@@ -2928,24 +2929,16 @@ function toggleGameUI(started){
   const confirmBtn   = document.getElementById('confirmBtn');
   const bottomBar    = document.getElementById('bottomBar');
 
-   if(started){
-    // Hide card selection UI
-    if(cardSection)  cardSection.style.display  = 'none';
-    if(legendRow)    legendRow.style.display     = 'none';
-    if(previewPanel) previewPanel.classList.remove('show');
-    document.getElementById('betPreviewRow').style.display = 'none';
-    // Show leaderboard
-    lbPanel.classList.add('show');
-    // Change bottom bar button to LIVE
+    if(started){
     confirmBtn.style.background = 'linear-gradient(135deg,var(--red),#cc0022)';
     confirmBtn.innerHTML = '🔴 LIVE ጨዋታ ክፈት';
     confirmBtn.onclick = ()=>{ showScreen('gameScreen'); buildTV(); renderGameCards(); updateGameCards(); };
-   } else {
+    } else {
     if(cardSection)  cardSection.style.display  = '';
     if(legendRow)    legendRow.style.display     = '';
     document.getElementById('betPreviewRow').style.display = 'flex';
     document.getElementById('lastBallDisplay').style.display = 'none';
-    // Hide leaderboard
+    document.getElementById('countdownBar').classList.remove('active');
     lbPanel.classList.remove('show');
     // Restore confirm button
     confirmBtn.style.background = 'linear-gradient(135deg,var(--green),#00a854)';
@@ -3053,7 +3046,7 @@ function renderGameLeaderboard(){
       <div class="lb-rank ${rank<=3?'r'+rank:''}">${rank===1?'👑':rank}</div>
       <div class="lb-info">
         <div class="lb-name">${s.label}</div>
-        <div class="lb-card-id">${s.needed===0?'🎉 BINGO!':s.needed+' away'}</div>
+        <div class="lb-card-id">${s.needed===0?'🎉 BINGO!':s.needed+' ቀሪ'}</div>
       </div>
       <div class="lb-hits">
         <div class="lb-hit-num">${s.hits}</div>
