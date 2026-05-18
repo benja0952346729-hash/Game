@@ -2608,22 +2608,32 @@ const audioCache = {};
 
 // ── BOARDS ──
 const boards = {};
-function hashSeed(n){
-  let h = n * 2654435761;
-  h = ((h >>> 16) ^ h) * 0x45d9f3b;
-  h = ((h >>> 16) ^ h) * 0x45d9f3b;
-  return ((h >>> 16) ^ h) >>> 0;
+function hashSeed(n) {
+  let h = n;
+  h = Math.imul(h ^ (h >>> 16), 0x45d9f3b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
 }
-function generateBoard(seed){
-  function sr(s){let x=Math.sin(s)*10000;return x-Math.floor(x);}
-  function getNums(min,max,s){
-    let arr=[],k=s;
-    while(arr.length<5){let n=Math.floor(sr(k++)*(max-min+1))+min;if(!arr.includes(n))arr.push(n);}
+function generateBoard(seed) {
+  let s = seed;
+  function rand() {
+    s = (Math.imul(s, 1664525) + 1013904223) & 0xFFFFFFFF;
+    return (s >>> 0) / 0x100000000;
+  }
+  function getNums(min, max) {
+    let arr = [];
+    while(arr.length < 5) {
+      let n = Math.floor(rand() * (max - min + 1)) + min;
+      if(!arr.includes(n)) arr.push(n);
+    }
     return arr;
   }
-  let B=getNums(1,15,seed+1),I=getNums(16,30,seed+2),N=getNums(31,45,seed+3),G=getNums(46,60,seed+4),O=getNums(61,75,seed+5);
-  let b=[];for(let i=0;i<5;i++)b.push(B[i],I[i],N[i],G[i],O[i]);
-  b[12]='FREE';return b;
+  let B=getNums(1,15), I=getNums(16,30), N=getNums(31,45),
+      G=getNums(46,60), O=getNums(61,75);
+  let b = [];
+  for(let i=0;i<5;i++) b.push(B[i],I[i],N[i],G[i],O[i]);
+  b[12] = 'FREE';
+  return b;
 }
 for(let i=1;i<=100;i++) boards[i]=generateBoard(hashSeed(i));
 
@@ -4242,4 +4252,4 @@ if(data.ok){
 };
 </script>
 </body>
-                                                                                                           </html>
+  </html>
