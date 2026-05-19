@@ -1468,14 +1468,20 @@ window.closeWelcome = function(){
   </div>
 
   <!-- COUNTDOWN BAR -->
-  <div id="countdownBar">
+ <div id="countdownBar">
     <div>
       <div class="cd-bar-label">⏱ Game ሲጀምር</div>
       <div class="cd-bar-val" id="cdBarVal">--:--</div>
       <div class="cd-bar-sub">Card ምረጥ — game auto ይጀምራል</div>
     </div>
+    <div style="text-align:right;">
+      <div style="font-size:0.62rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px;">💰 ቀሪ ሂሳብ</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--gold);line-height:1;text-shadow:0 0 20px rgba(240,192,64,.7),0 0 40px rgba(240,192,64,.3);letter-spacing:2px;">
+        <span id="cdBalance">0</span><span style="font-size:1rem;color:var(--gold2);">ብር</span>
+      </div>
+    </div>
     <div class="cd-pulse"></div>
-  </div>
+</div>
 
   <!-- BET + PREVIEW ROW -->
   <div id="betPreviewRow" style="display:flex;gap:6px;margin:6px 10px;align-items:stretch;min-height:110px;">
@@ -1494,14 +1500,14 @@ window.closeWelcome = function(){
     background:linear-gradient(90deg,transparent,rgba(240,192,64,.6),transparent);
     border-radius:18px 18px 0 0;"></div>
       <div>
-        <div style="font-size:0.5rem;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:2px;">Bet</div>
+        <div style="font-size:0.5rem;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:2px;">መደብ</div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--gold);
           text-shadow:0 0 14px rgba(240,192,64,.4);line-height:1;">
           <span id="betShow">0</span> <span style="font-size:0.9rem;color:var(--gold2);">ብር</span>
         </div>
       </div>
       <div>
-        <div style="font-size:0.5rem;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:2px;">Prize Pool</div>
+        <div style="font-size:0.5rem;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:2px;">ደራሽ</div>
         <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:var(--green);
           text-shadow:0 0 14px rgba(0,230,118,.4);line-height:1;">
           <span id="prizeShow">0</span> <span style="font-size:0.9rem;color:#00a854;">ብር</span>
@@ -1599,7 +1605,7 @@ window.closeWelcome = function(){
     </div>
     <div style="display:flex;gap:5px;align-items:center;">
       <div style="background:linear-gradient(135deg,#1a0e00,#0d0900);border:1px solid rgba(240,192,64,.3);border-radius:20px;padding:4px 10px;display:flex;align-items:center;gap:4px;">
-        <span style="font-size:0.6rem;color:var(--muted);">BET</span>
+        <div style="font-size:0.5rem;color:var(--muted);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:2px;">ደራሽ</div>
         <span style="font-family:'Bebas Neue',sans-serif;font-size:0.95rem;color:var(--gold);" id="betGame">0</span>
       </div>
       <div style="background:linear-gradient(135deg,#001a0e,#000d07);border:1px solid rgba(0,230,118,.3);border-radius:20px;padding:4px 10px;display:flex;align-items:center;gap:4px;">
@@ -2172,6 +2178,8 @@ evtSource.onmessage = (e) => {
   if(String(data.uid) === String(userId)){
     balance = data.balance;
     document.getElementById('balanceVal').textContent = balance;
+    const cdBal = document.getElementById('cdBalance');
+if(cdBal) cdBal.textContent = balance;
   }
 }
 if(data.type === 'card_taken'){
@@ -2326,6 +2334,8 @@ updateCardGrid(confData);
 
 balance = userRes.balance || 0;
 document.getElementById('balanceVal').textContent = balance;
+const cdBal = document.getElementById('cdBalance');
+if(cdBal) cdBal.textContent = balance;
 
 if(gameRes.status?.started) {
   gameStarted = true;
@@ -2980,6 +2990,8 @@ const balData = await balRes.json();
 if(balData.balance !== undefined){
   balance = balData.balance;
   document.getElementById('balanceVal').textContent = balance;
+  const cdBal = document.getElementById('cdBalance');
+if(cdBal) cdBal.textContent = balance;
 }   
     // 🔍 DEBUG
     console.log('Full data:', JSON.stringify(d));
@@ -3883,8 +3895,17 @@ function showMyWinPopup(winner, share, called) {
 }
 window.openPayModal=(amt)=>{
   const url = `https://t.me/Firstanywharebingobot?start=deposit_${amt}`;
-  if(window.Telegram?.WebApp){
-    window.Telegram.WebApp.openTelegramLink(url);
+  try {
+    const tgApp = window.Telegram?.WebApp;
+    if(tgApp?.openTelegramLink){
+      tgApp.openTelegramLink(url);
+    } else if(tgApp?.openLink){
+      tgApp.openLink(url, {try_instant_view: false});
+    } else {
+      window.open(url, '_blank');
+    }
+  } catch(e) {
+    window.open(url, '_blank');
   }
 };
 window.openWithdraw=()=>{
